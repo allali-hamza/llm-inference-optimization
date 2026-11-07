@@ -5,11 +5,9 @@ import torch
 import torch.nn as nn
 from transformers import AutoTokenizer
 
-from llm_inference_optimization.inference.generation import generate
 from llm_inference_optimization.model.layers.decoder import DecoderBlock
 from llm_inference_optimization.model.model import CausalLanguageModel, TransformerBackbone
 from llm_inference_optimization.model.weights import load_pretrained_weights
-
 
 def load_qwen_model(checkpoint_dir="checkpoint"):
     checkpoint_dir = Path(checkpoint_dir)
@@ -40,6 +38,7 @@ def load_qwen_model(checkpoint_dir="checkpoint"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
     model = model.to(device=device, dtype=dtype)
+    model.eval()
     tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir, local_files_only=True)
 
     return model, tokenizer
