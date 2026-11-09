@@ -2,7 +2,12 @@ import time
 
 import torch
 
-from llm_inference_optimization.benchmarking.utils import prepare_inputs
+from llm_inference_optimization.benchmarking.utils import (
+    generate_next_token,
+    prepare_inputs,
+    save_csv,
+    save_metadata,
+)
 from llm_inference_optimization.inference.load_model import load_qwen_model
 
 
@@ -24,35 +29,7 @@ def generate_and_measure(model, input_ids, max_new_tokens):
 
         start = time.perf_counter()
 
-        sequence_length = input_ids.shape[1]
-
-        position_ids = torch.arange(
-            sequence_length,
-            device=device,
-        ).unsqueeze(0)
-
-        mask = torch.full(
-            (sequence_length, sequence_length),
-            float("-inf"),
-            device=device,
-        )
-
-        mask = torch.triu(
-            mask,
-            diagonal=1,
-        ).unsqueeze(0).unsqueeze(0)
-
-        logits = model(input_ids, mask, position_ids)
-
-        next_token = logits[:, -1, :].argmax(
-            dim=-1,
-            keepdim=True,
-        )
-
-        input_ids = torch.cat(
-            (input_ids, next_token),
-            dim=1,
-        )
+        input_ids = generate_next_token(model, input_ids)
 
         if device.type == "cuda":
             torch.cuda.synchronize(device)
@@ -122,6 +99,8 @@ def main():
     )
     print("-" * 78)
 
+    results = []
+
     for max_new_tokens in max_new_tokens_list:
 
         for _ in range(warmup):
@@ -139,6 +118,12 @@ def main():
 
         metrics = compute_metrics(latencies, total_time)
 
+        results.append({
+            "prompt_length": prompt_len,
+            "max_new_tokens": max_new_tokens,
+            **metrics,
+        })
+
         print(
             f"{max_new_tokens:<14}"
             f"{metrics['ttft_ms']:<14.3f}"
@@ -146,6 +131,20 @@ def main():
             f"{metrics['total_time_s']:<14.3f}"
             f"{metrics['throughput_tokens_s']:<22.2f}"
         )
+
+    save_csv(
+        "throughput.csv",
+        [
+            "prompt_length",
+            "max_new_tokens",
+            "ttft_ms",
+            "tpot_ms",
+            "total_time_s",
+            "throughput_tokens_s",
+        ],
+        results,
+    )
+    save_metadata(device, next(model.parameters()).dtype)
 
 
 if __name__ == "__main__":
