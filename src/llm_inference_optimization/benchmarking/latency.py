@@ -2,7 +2,11 @@ import numpy as np
 import torch
 
 from llm_inference_optimization.inference.load_model import load_qwen_model
-from llm_inference_optimization.benchmarking.utils import prepare_inputs
+from llm_inference_optimization.benchmarking.utils import (
+    prepare_inputs,
+    save_csv,
+    save_metadata,
+)
 
 @torch.inference_mode()
 def benchmark_forward(model, input_ids, position_ids,mask, warmup=5, repetitions=30):
@@ -48,7 +52,7 @@ def main():
     print(f"Precision: {next(model.parameters()).dtype}")
     print("Batch size: 1")
     print("Warmup: 5")
-    print("Repetitions: 20")
+    print("Repetitions: 30")
 
     print(
         f"\n{'Seq Len':<12}"
@@ -57,6 +61,8 @@ def main():
         f"{'P95 (ms)':<15}"
     )
     print("-" * 57)
+
+    results = []
 
     for seq_len in sequence_lengths:
         input_ids, position_ids, mask = prepare_inputs(
@@ -76,12 +82,26 @@ def main():
         median_latency = np.median(latencies)
         p95_latency = np.percentile(latencies, 95)
 
+        results.append({
+            "sequence_length": seq_len,
+            "mean_latency_ms": mean_latency,
+            "median_latency_ms": median_latency,
+            "p95_latency_ms": p95_latency,
+        })
+
         print(
             f"{seq_len:<12}"
             f"{mean_latency:<15.3f}"
             f"{median_latency:<15.3f}"
             f"{p95_latency:<15.3f}"
         )
+
+    save_csv(
+        "latency.csv",
+        ["sequence_length", "mean_latency_ms", "median_latency_ms", "p95_latency_ms"],
+        results,
+    )
+    save_metadata(device, next(model.parameters()).dtype)
 
 
 if __name__ == "__main__":
