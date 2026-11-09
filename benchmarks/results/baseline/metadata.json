@@ -1,0 +1,7 @@
+{
+  "model": "Qwen/Qwen3-1.7B",
+  "device": "cuda:0",
+  "dtype": "torch.bfloat16",
+  "batch_size": 1,
+  "kv_cache": false
+}
