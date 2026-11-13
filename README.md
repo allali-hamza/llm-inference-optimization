@@ -85,16 +85,6 @@ frontend/
 
 ## Variants
 
-```mermaid
-flowchart LR
-    P[Prompt] --> T[Tokenizer]
-    T --> B[Baseline\nfull forward per token]
-    T --> K[KV Cache\nreused keys and values]
-    K --> F[FlashAttention\nFlash SDPA backend]
-    K --> Q[Quantization\nINT8 or INT4]
-    K --> M[Batching\nmultiple requests]
-```
-
 ### Baseline
 
 The baseline recomputes a full forward pass for every generated token. It uses standard causal attention and BF16 weights.
