@@ -4,14 +4,16 @@ from pathlib import Path
 
 import torch
 
+from llm_inference_optimization.inference.utils import create_causal_mask, forward_baseline
+
 
 RESULTS_DIR = Path(__file__).resolve().parents[3] / "benchmarks" / "results" / "baseline"
 
 
-def save_csv(filename, fieldnames, rows):
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+def save_csv(filename, fieldnames, rows, directory=RESULTS_DIR):
+    directory.mkdir(parents=True, exist_ok=True)
 
-    with (RESULTS_DIR / filename).open("w", newline="") as file:
+    with (directory / filename).open("w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
@@ -38,13 +40,7 @@ def prepare_attention_inputs(seq_len, device):
         device=device,
     ).unsqueeze(0)
 
-    mask = torch.full(
-        (seq_len, seq_len),
-        float("-inf"),
-        device=device,
-    )
-
-    mask = torch.triu(mask, diagonal=1).unsqueeze(0).unsqueeze(0)
+    mask = create_causal_mask(seq_len, device)
 
     return position_ids, mask
 
@@ -63,12 +59,7 @@ def prepare_inputs(seq_len, device, vocab_size):
 
 
 def generate_next_token(model, input_ids):
-    position_ids, mask = prepare_attention_inputs(
-        input_ids.shape[1],
-        input_ids.device,
-    )
-
-    logits = model(input_ids, mask, position_ids)
+    logits = forward_baseline(model, input_ids)
     next_token = logits[:, -1, :].argmax(dim=-1, keepdim=True)
 
     return torch.cat((input_ids, next_token), dim=1)

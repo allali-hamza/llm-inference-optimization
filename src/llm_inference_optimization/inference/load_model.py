@@ -9,9 +9,27 @@ from llm_inference_optimization.model.layers.decoder import DecoderBlock
 from llm_inference_optimization.model.model import CausalLanguageModel, TransformerBackbone
 from llm_inference_optimization.model.weights import load_pretrained_weights
 
-def load_qwen_model(checkpoint_dir="checkpoint"):
+
+def load_checkpoint_config(checkpoint_dir):
     checkpoint_dir = Path(checkpoint_dir)
     config = json.loads((checkpoint_dir / "config.json").read_text())
+    return checkpoint_dir, config
+
+
+def load_model_and_tokenizer(model, checkpoint_dir):
+    load_pretrained_weights(model, checkpoint_dir)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+    model = model.to(device=device, dtype=dtype)
+    model.eval()
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir, local_files_only=True)
+
+    return model, tokenizer
+
+
+def load_qwen_model(checkpoint_dir="checkpoint"):
+    checkpoint_dir, config = load_checkpoint_config(checkpoint_dir)
 
     with torch.device("meta"):
         decoders = nn.ModuleList([
@@ -33,12 +51,4 @@ def load_qwen_model(checkpoint_dir="checkpoint"):
             )
         )
 
-    load_pretrained_weights(model, checkpoint_dir)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
-    model = model.to(device=device, dtype=dtype)
-    model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir, local_files_only=True)
-
-    return model, tokenizer
+    return load_model_and_tokenizer(model, checkpoint_dir)
