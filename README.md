@@ -121,6 +121,24 @@ text = generate(model, tokenizer, "Paris is the capital of", max_new_tokens=20)
 print(text)
 ```
 
+## Docker
+
+The Docker image starts the FastAPI inference server. It does not include the Qwen checkpoint: mount the local `checkpoint/` directory at runtime to keep the image small.
+
+GPU inference requires Docker with NVIDIA Container Toolkit configured on the host.
+
+```bash
+docker build -t llm-inference-optimization .
+
+docker run --rm \
+  --gpus all \
+  -p 8000:8000 \
+  -v "$(pwd)/checkpoint:/app/checkpoint:ro" \
+  llm-inference-optimization
+```
+
+The server is then available at `http://localhost:8000`, with Swagger UI at `http://localhost:8000/docs`.
+
 ## FastAPI backend
 
 Start the backend from the repository root:
