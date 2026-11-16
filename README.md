@@ -1,8 +1,8 @@
 # LLM Inference Optimization
 
-Personal project exploring inference optimizations for a custom PyTorch implementation of **Qwen3-1.7B**.
+A custom LLM inference engine built in PyTorch, powered by Qwen3-1.7B, with a focus on optimizing inference speed, throughput, and GPU memory efficiency.
 
-The project includes a custom Qwen3 architecture, a Hugging Face checkpoint loader, a greedy decoding baseline, GPU-measured optimization variants, a FastAPI backend, and a local Streamlit interface.
+The project explores and benchmarks KV Caching, FlashAttention, INT8/INT4 Quantization, and Batched Inference, with a FastAPI backend and an interactive Streamlit interface for testing and visualizing performance.
 
 ## Results summary
 
@@ -16,14 +16,6 @@ On an RTX 4060 Laptop GPU (8 GiB), with a 512-token prompt and 64 generated toke
 | KV Cache + INT8 | 12.88 tok/s | 2205 MiB | 39% less allocated VRAM, but slower. |
 | KV Cache + INT4 | 8.54 tok/s | 1551 MiB | 57% less allocated VRAM, but slower. |
 
-KV Cache is the most impactful optimization for decoding. FlashAttention then improves prefill and decode throughput. INT8 and INT4 are mainly useful here for reducing memory: this first implementation dequantizes weights before each `Linear`, which increases compute time.
-
-## Goals
-
-- Understand the cost of prefill and autoregressive decoding.
-- Measure the impact of KV Cache, FlashAttention, quantization, and batching.
-- Keep implementations simple and readable, without custom CUDA kernels.
-- Compare variants with the same benchmark settings.
 
 ## Environment
 
@@ -76,12 +68,17 @@ benchmarks/results/
 └── batching/
 
 frontend/
-├── app.py                    # Streamlit entry point
-├── playground.py             # Live inference UI
-└── dashboard.py              # Offline benchmark dashboard
-```
+├── app.py                    # Streamlit entry point and navigation
+├── api.py                    # FastAPI client and HTTP error handling
+├── config.py                 # Variants, labels, and shared UI settings
+├── theme.py                  # Shared Streamlit styles
+├── playground.py             # Live inference playground
+├── dashboard.py              # Dashboard built from saved CSV results
+└── README.md                 # Frontend-specific instructions
 
-`inference/utils.py` centralizes the causal-mask construction and baseline forward helper. Baseline and KV Cache loaders also share checkpoint parsing, weight loading, device/dtype selection, and tokenizer loading.
+.streamlit/
+└── config.toml               # Streamlit theme configuration
+```
 
 ## Variants
 
@@ -95,7 +92,7 @@ After prefill, each layer stores its keys and values. During decoding, only the 
 
 ### FlashAttention
 
-The FlashAttention variant uses `torch.nn.functional.scaled_dot_product_attention` with the `FLASH_ATTENTION` backend forced. If that backend is unavailable, the benchmark does not run, preventing a silent fallback to the math backend.
+The FlashAttention variant uses `torch.nn.functional.scaled_dot_product_attention` with the `FLASH_ATTENTION` backend forced.
 
 ### Quantification
 
@@ -103,8 +100,6 @@ The FlashAttention variant uses `torch.nn.functional.scaled_dot_product_attentio
 
 - INT8: weights stored as `int8` with one scale per output.
 - INT4: values packed into nibbles.
-
-These variants are experimental: they dequantize weights before the matrix multiplication. They reduce weight memory, but are not expected to accelerate compute yet.
 
 ### Batching
 
@@ -205,7 +200,7 @@ When `compare_to_baseline=true` for a non-baseline variant, the API sequentially
 - `throughput_speedup`: selected throughput / baseline throughput;
 - `vram_difference_mib`: selected peak allocated VRAM − baseline peak allocated VRAM.
 
-The selected model is loaded and warmed up for every request. During a comparison it is released before the baseline is loaded, so two copies are not intentionally kept on the GPU. There is no model cache, request queue, streaming endpoint, sampling, or HTTP batching endpoint. Avoid concurrent inference requests on the 8 GiB GPU.
+The selected model is loaded and warmed up for every request. During a comparison it is released before the baseline is loaded, so two copies are not intentionally kept on the GPU.
 
 ## Streamlit frontend
 
@@ -224,26 +219,6 @@ Open `http://localhost:8501`.
 
 Optional environment variables:
 
-```bash
-LLM_API_URL=http://127.0.0.1:8000 uv run streamlit run frontend/app.py
-BENCH_RESULTS_DIR=./benchmarks/results uv run streamlit run frontend/app.py
-```
-
-`LLM_API_URL` defaults to `http://127.0.0.1:8000`, and `BENCH_RESULTS_DIR` defaults to `benchmarks/results`. The frontend uses server-to-server HTTP requests, so the current absence of FastAPI CORS middleware does not affect this local setup.
-
-## Validation
-
-The baseline and KV Cache implementations were compared with greedy decoding on the same pretrained checkpoint.
-
-| Check | Result |
-|---|---|
-| Greedy tokens identical | `True` |
-| Logits numerically compatible | `True` |
-| Maximum observed logits difference | `0.3125` in BF16 |
-| Pretrained checkpoint | Same checkpoint |
-| Numerical precision | `torch.bfloat16` |
-
-INT8 and INT4 intentionally introduce numerical approximations, so exact logit equivalence is not expected for these variants. No separate automated test suite is currently included in the repository.
 
 ## Benchmarks
 
@@ -354,12 +329,8 @@ uv run python -m llm_inference_optimization.benchmarking.batching
 ## Current limitations
 
 - The KV Cache is dynamic and uses `torch.cat()` for every token; a preallocated cache would be more efficient.
-- INT8 and INT4 are memory-compression experiments, not optimized quantized kernels.
-- Results depend on the GPU, NVIDIA driver, PyTorch version, and machine thermal state.
-- Peak allocated VRAM is a PyTorch allocator metric; it may not match total GPU memory usage shown by `nvidia-smi`.
+- INT8 and INT4 are memory-compression experiments (not optimized quantized kernels).
 - The FlashAttention benchmark requires the Flash backend to be actually available.
-- Models are reloaded for each API request. Weight loading is excluded from API metrics but included in the user-visible wait time.
-- FastAPI has no request queue or dedicated CUDA/out-of-memory error handling yet.
 - The API accepts one prompt only. Batching is currently a Python implementation and an offline benchmark.
+- Further performance gains would require custom Triton kernels, especially for quantized matrix multiplications that operate directly on INT8 or INT4 weights.
 
-For the complete API and frontend integration reference, see [FRONTEND_CONTEXT.md](FRONTEND_CONTEXT.md).
