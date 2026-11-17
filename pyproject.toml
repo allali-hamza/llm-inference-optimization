@@ -20,6 +20,11 @@ dependencies = [
     "transformers>=5.22.1",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [project.scripts]
 llm-inference-optimization = "llm_inference_optimization:main"
 
