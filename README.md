@@ -48,6 +48,12 @@ Download them with:
 uv run python scripts/download_model.py
 ```
 
+Run the CPU test suite without loading the checkpoint or using the GPU:
+
+```bash
+uv run pytest
+```
+
 ## Project structure
 
 ```text
