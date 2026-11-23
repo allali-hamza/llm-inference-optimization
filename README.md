@@ -183,8 +183,7 @@ The backend uses greedy decoding for one prompt. It applies the Qwen chat templa
 | `kv_cache_int8` | KV Cache + experimental INT8 layers |
 | `kv_cache_int4` | KV Cache + experimental INT4 layers |
 
-Successful responses contain this structure. Numerical values below are illustrative only.
-
+Successful responses contain this structure.
 ```json
 {
   "variant": "kv_cache",
